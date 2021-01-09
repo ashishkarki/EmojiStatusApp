@@ -1,13 +1,18 @@
 package com.karkia.emojistatusapp
 
+import android.content.DialogInterface
 import android.content.Intent
 import android.os.Bundle
+import android.text.InputFilter
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -17,6 +22,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.karkia.emojistatusapp.filter.EmojiFilter
 import com.karkia.emojistatusapp.model.EmojiUserModel
 import com.karkia.emojistatusapp.view.UserViewHolder
 
@@ -90,8 +96,54 @@ class MainActivity : AppCompatActivity() {
             // clear the whole back-stack
             logoutIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             startActivity(logoutIntent)
+        } else if (item.itemId == R.id.miEdit) {
+            Log.i(TAG, "Show alert dialog to edit emoji status")
+            showAlertDialog()
         }
 
         return super.onOptionsItemSelected(item)
+    }
+
+    private fun showAlertDialog() {
+        val editText = EditText(this)
+        // restrict input length and ensure only emojis are input
+        val emojiFilter = EmojiFilter().setMainActivityContext(this@MainActivity)
+        val lengthFilter = InputFilter.LengthFilter(13)
+        editText.filters = arrayOf(lengthFilter)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Please update your emoji")
+            .setView(editText)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("OK", null)
+            .show()
+
+        dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+            Log.i(TAG, "Clicked on positive button!")
+            val enteredEmojis = editText.text.toString()
+            if (enteredEmojis.isBlank()) {
+                Toast.makeText(
+                    this,
+                    "Emoji field cannot be empty!",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@setOnClickListener
+            }
+
+            val currentUser = auth.currentUser
+            if (currentUser == null) {
+                Toast.makeText(
+                    this,
+                    "No signed in user found!",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@setOnClickListener
+            }
+
+            // if everything is okay, then update firestore with the new emoji
+            db.collection("users").document(currentUser.uid)
+                .update("emojis", enteredEmojis)
+            dialog.dismiss()
+        }
     }
 }
